@@ -12,6 +12,13 @@ services:
       - AUTH_USERNAME=${AUTH_USERNAME:-admin}
       - AUTH_PASSWORD=${AUTH_PASSWORD}
       - OPENCLAW_GATEWAY_TOKEN=${OPENCLAW_GATEWAY_TOKEN}
+      # Git sync (optional)
+      # - GIT_SYNC_ENABLED=true
+      # - GIT_SYNC_REPO_URL=https://github.com/owner/repo.git
+      # - GIT_SYNC_BRANCH=main
+      # - GIT_SYNC_INTERVAL_SEC=300
+      # - GIT_SYNC_PUSH_ENABLED=true
+      # - GIT_SYNC_GITHUB_TOKEN=${GITHUB_TOKEN}
       # Browser sidecar
       - BROWSER_CDP_URL=http://browser:9223
       - BROWSER_DEFAULT_PROFILE=openclaw

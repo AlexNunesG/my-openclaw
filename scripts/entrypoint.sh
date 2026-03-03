@@ -107,6 +107,188 @@ export OPENCLAW_WORKSPACE_DIR="$WORKSPACE_DIR"
 # (symlinks are detected as separate paths).
 export HOME="${STATE_DIR%/.openclaw}"
 
+is_true() {
+  case "${1,,}" in
+    1|true|yes|on) return 0 ;;
+    *) return 1 ;;
+  esac
+}
+
+has_git_changes() {
+  local dir="$1"
+  ! git -C "$dir" diff --quiet || \
+  ! git -C "$dir" diff --cached --quiet || \
+  [ -n "$(git -C "$dir" ls-files --others --exclude-standard)" ]
+}
+
+GIT_SYNC_ENABLED_RAW="${GIT_SYNC_ENABLED:-}"
+GIT_SYNC_REPO_URL="${GIT_SYNC_REPO_URL:-}"
+GIT_SYNC_BRANCH="${GIT_SYNC_BRANCH:-}"
+GIT_SYNC_INTERVAL_SEC="${GIT_SYNC_INTERVAL_SEC:-300}"
+GIT_SYNC_PUSH_ENABLED_RAW="${GIT_SYNC_PUSH_ENABLED:-true}"
+GIT_SYNC_STATE_ENABLED_RAW="${GIT_SYNC_STATE_ENABLED:-false}"
+GIT_SYNC_WORKSPACE_ENABLED_RAW="${GIT_SYNC_WORKSPACE_ENABLED:-true}"
+GIT_SYNC_COMMIT_MESSAGE="${GIT_SYNC_COMMIT_MESSAGE:-chore(sync): periodic container sync}"
+GIT_SYNC_AUTHOR_NAME="${GIT_SYNC_AUTHOR_NAME:-Openclaw Sync Bot}"
+GIT_SYNC_AUTHOR_EMAIL="${GIT_SYNC_AUTHOR_EMAIL:-openclaw-sync@local}"
+GIT_SYNC_GITHUB_TOKEN="${GIT_SYNC_GITHUB_TOKEN:-${GITHUB_TOKEN:-}}"
+
+GIT_SYNC_ENABLED=false
+GIT_SYNC_PUSH_ENABLED=false
+GIT_SYNC_STATE_ENABLED=false
+GIT_SYNC_WORKSPACE_ENABLED=false
+
+if is_true "$GIT_SYNC_ENABLED_RAW"; then
+  GIT_SYNC_ENABLED=true
+fi
+if is_true "$GIT_SYNC_PUSH_ENABLED_RAW"; then
+  GIT_SYNC_PUSH_ENABLED=true
+fi
+if is_true "$GIT_SYNC_STATE_ENABLED_RAW"; then
+  GIT_SYNC_STATE_ENABLED=true
+fi
+if is_true "$GIT_SYNC_WORKSPACE_ENABLED_RAW"; then
+  GIT_SYNC_WORKSPACE_ENABLED=true
+fi
+
+if [ "$GIT_SYNC_ENABLED" = true ]; then
+  if [ -z "$GIT_SYNC_REPO_URL" ]; then
+    echo "[entrypoint] ERROR: GIT_SYNC_ENABLED=true requires GIT_SYNC_REPO_URL"
+    exit 1
+  fi
+
+  if ! [[ "$GIT_SYNC_INTERVAL_SEC" =~ ^[0-9]+$ ]] || [ "$GIT_SYNC_INTERVAL_SEC" -lt 60 ]; then
+    echo "[entrypoint] invalid GIT_SYNC_INTERVAL_SEC ($GIT_SYNC_INTERVAL_SEC), using 300"
+    GIT_SYNC_INTERVAL_SEC=300
+  fi
+
+  echo "[entrypoint] git sync enabled"
+  echo "[entrypoint] git sync repo: $GIT_SYNC_REPO_URL"
+  echo "[entrypoint] git sync interval: ${GIT_SYNC_INTERVAL_SEC}s"
+  if [ "$GIT_SYNC_PUSH_ENABLED" = true ]; then
+    echo "[entrypoint] git sync push: enabled"
+  else
+    echo "[entrypoint] git sync push: disabled"
+  fi
+fi
+
+git_sync_cmd() {
+  local dir="$1"
+  shift
+
+  if [ -n "$GIT_SYNC_GITHUB_TOKEN" ] && [[ "$GIT_SYNC_REPO_URL" == *"github.com"* ]]; then
+    git -C "$dir" -c credential.helper= -c "http.https://github.com/.extraheader=AUTHORIZATION: bearer ${GIT_SYNC_GITHUB_TOKEN}" "$@"
+  else
+    git -C "$dir" -c credential.helper= "$@"
+  fi
+}
+
+git_sync_commit_if_needed() {
+  local dir="$1"
+  local label="$2"
+
+  if has_git_changes "$dir"; then
+    git -C "$dir" add -A
+    if ! git -C "$dir" diff --cached --quiet; then
+      git -C "$dir" \
+        -c user.name="$GIT_SYNC_AUTHOR_NAME" \
+        -c user.email="$GIT_SYNC_AUTHOR_EMAIL" \
+        commit -m "$GIT_SYNC_COMMIT_MESSAGE ($label)" >/dev/null 2>&1 || true
+    fi
+  fi
+}
+
+git_sync_target() {
+  local label="$1"
+  local dir="$2"
+  local branch="$GIT_SYNC_BRANCH"
+
+  mkdir -p "$dir"
+
+  if [ ! -d "$dir/.git" ]; then
+    git -C "$dir" init >/dev/null 2>&1
+  fi
+
+  if ! git -C "$dir" rev-parse --verify HEAD >/dev/null 2>&1; then
+    git -C "$dir" checkout -B "${branch:-main}" >/dev/null 2>&1 || true
+    git_sync_commit_if_needed "$dir" "$label bootstrap"
+  fi
+
+  local origin_url
+  origin_url="$(git -C "$dir" remote get-url origin 2>/dev/null || true)"
+  if [ -z "$origin_url" ]; then
+    git -C "$dir" remote add origin "$GIT_SYNC_REPO_URL"
+  elif [ "$origin_url" != "$GIT_SYNC_REPO_URL" ]; then
+    git -C "$dir" remote set-url origin "$GIT_SYNC_REPO_URL"
+  fi
+
+  if [ -n "$branch" ]; then
+    git_sync_cmd "$dir" fetch --prune origin "$branch" >/dev/null 2>&1 || git_sync_cmd "$dir" fetch --prune origin >/dev/null 2>&1
+  else
+    git_sync_cmd "$dir" fetch --prune origin >/dev/null 2>&1
+    branch="$(git -C "$dir" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
+    if [ -z "$branch" ]; then
+      branch="main"
+    fi
+  fi
+
+  if git -C "$dir" show-ref --verify --quiet "refs/heads/$branch"; then
+    git -C "$dir" checkout "$branch" >/dev/null 2>&1
+  elif git -C "$dir" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+    git -C "$dir" checkout -B "$branch" "origin/$branch" >/dev/null 2>&1 || true
+  else
+    git -C "$dir" checkout -B "$branch" >/dev/null 2>&1 || true
+  fi
+
+  git_sync_commit_if_needed "$dir" "$label pre-pull"
+
+  if git -C "$dir" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
+    if ! git_sync_cmd "$dir" pull --rebase --autostash origin "$branch" >/dev/null 2>&1; then
+      git -C "$dir" rebase --abort >/dev/null 2>&1 || true
+      git_sync_cmd "$dir" merge --no-edit --allow-unrelated-histories "origin/$branch" >/dev/null 2>&1 || return 1
+    fi
+  fi
+
+  git_sync_commit_if_needed "$dir" "$label post-pull"
+
+  if [ "$GIT_SYNC_PUSH_ENABLED" = true ]; then
+    git_sync_cmd "$dir" push origin "$branch" >/dev/null 2>&1 || return 1
+  fi
+
+  return 0
+}
+
+git_sync_once() {
+  local failures=0
+
+  if [ "$GIT_SYNC_STATE_ENABLED" = true ]; then
+    if git_sync_target "state" "$STATE_DIR"; then
+      echo "[entrypoint] git sync: state directory synced"
+    else
+      echo "[entrypoint] git sync: state directory sync failed"
+      failures=$((failures + 1))
+    fi
+  fi
+
+  if [ "$GIT_SYNC_WORKSPACE_ENABLED" = true ]; then
+    if git_sync_target "workspace" "$WORKSPACE_DIR"; then
+      echo "[entrypoint] git sync: workspace directory synced"
+    else
+      echo "[entrypoint] git sync: workspace directory sync failed"
+      failures=$((failures + 1))
+    fi
+  fi
+
+  return "$failures"
+}
+
+git_sync_loop() {
+  while true; do
+    git_sync_once || true
+    sleep "$GIT_SYNC_INTERVAL_SEC"
+  done
+}
+
 # ── Run custom init script (if provided) ─────────────────────────────────────
 INIT_SCRIPT="${OPENCLAW_DOCKER_INIT_SCRIPT:-}"
 if [ -n "$INIT_SCRIPT" ]; then
@@ -308,4 +490,36 @@ echo "[entrypoint] starting openclaw gateway on port $GATEWAY_PORT..."
 # cwd must be the app root so the gateway finds dist/control-ui/ assets
 # "gateway run" = foreground mode; all config comes from openclaw.json
 cd /opt/openclaw/app
-exec openclaw gateway run
+
+SYNC_PID=""
+GATEWAY_PID=""
+
+cleanup_children() {
+  if [ -n "$SYNC_PID" ] && kill -0 "$SYNC_PID" 2>/dev/null; then
+    kill "$SYNC_PID" 2>/dev/null || true
+    wait "$SYNC_PID" 2>/dev/null || true
+  fi
+
+  if [ -n "$GATEWAY_PID" ] && kill -0 "$GATEWAY_PID" 2>/dev/null; then
+    kill "$GATEWAY_PID" 2>/dev/null || true
+    wait "$GATEWAY_PID" 2>/dev/null || true
+  fi
+}
+
+trap cleanup_children TERM INT
+
+if [ "$GIT_SYNC_ENABLED" = true ]; then
+  echo "[entrypoint] running initial git sync..."
+  git_sync_once || true
+  echo "[entrypoint] starting git sync loop..."
+  git_sync_loop &
+  SYNC_PID=$!
+fi
+
+openclaw gateway run &
+GATEWAY_PID=$!
+wait "$GATEWAY_PID"
+GATEWAY_EXIT_CODE=$?
+
+cleanup_children
+exit "$GATEWAY_EXIT_CODE"

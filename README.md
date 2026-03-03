@@ -173,6 +173,30 @@ If a provider env var is removed, that provider section is cleaned from `opencla
 | `OPENCLAW_CONFIG_PATH` | `<STATE_DIR>/openclaw.json` | Override path to the config file. |
 | `OPENCLAW_CUSTOM_CONFIG` | `/app/config/openclaw.json` | Path to a user-provided custom JSON config. Env vars override on top. |
 
+### Git sync (optional)
+
+When enabled, the container initializes Git repos in `OPENCLAW_STATE_DIR` and `OPENCLAW_WORKSPACE_DIR`, pulls from the configured repo on startup, and repeats sync every interval (default 300 seconds).
+
+| Variable | Default | Description |
+|---|---|---|
+| `GIT_SYNC_ENABLED` | `false` | Set to `true` to enable periodic git sync. |
+| `GIT_SYNC_REPO_URL` | | Repository URL to sync from (e.g. `https://github.com/org/repo.git`). Required when enabled. |
+| `GIT_SYNC_BRANCH` | remote default / `main` fallback | Branch to sync. If unset, resolves from remote HEAD. |
+| `GIT_SYNC_INTERVAL_SEC` | `300` | Sync interval in seconds. Minimum accepted value is `60`. |
+| `GIT_SYNC_PUSH_ENABLED` | `true` | If `true`, pushes committed local changes back to origin after sync. |
+| `GIT_SYNC_STATE_ENABLED` | `false` | Sync `OPENCLAW_STATE_DIR`. |
+| `GIT_SYNC_WORKSPACE_ENABLED` | `true` | Sync `OPENCLAW_WORKSPACE_DIR`. |
+| `GIT_SYNC_COMMIT_MESSAGE` | `chore(sync): periodic container sync` | Commit message prefix for auto-commits. Target label is appended. |
+| `GIT_SYNC_AUTHOR_NAME` | `Openclaw Sync Bot` | Git author name for auto-commits. |
+| `GIT_SYNC_AUTHOR_EMAIL` | `openclaw-sync@local` | Git author email for auto-commits. |
+| `GIT_SYNC_GITHUB_TOKEN` | | Optional token for private GitHub repos. Falls back to `GITHUB_TOKEN` when set. |
+| `GITHUB_TOKEN` | | Optional fallback token for private GitHub repos. |
+
+Notes:
+- Sync runs once immediately at startup and then on each interval.
+- Pull strategy is rebase first; on failure it falls back to merge with unrelated histories.
+- State directory sync may include runtime files and secrets; use with caution.
+
 ### Hooks (webhook automation, optional)
 
 | Variable | Default | Description |
