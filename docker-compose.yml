@@ -6,7 +6,8 @@ services:
     environment:
       # Provider (at least one required)
       #- ANTHROPIC_API_KEY=sk-ant-...
-      - OPENCODE_API_KEY=${OPENCODE_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - OPENCLAW_PRIMARY_MODEL=opencode/kimi-k2.5
       # Auth
       - AUTH_USERNAME=${AUTH_USERNAME:-admin}
