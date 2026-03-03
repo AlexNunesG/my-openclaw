@@ -14,7 +14,8 @@ RUN apt-get update \
 RUN rm -f /etc/nginx/sites-enabled/default
 
 COPY scripts/ /app/scripts/
-RUN chmod +x /app/scripts/*.sh
+RUN sed -i 's/\r$//' /app/scripts/*.sh \
+  && chmod +x /app/scripts/*.sh
 
 ENV NPM_CONFIG_PREFIX="/data/npm-global" \
     UV_TOOL_DIR="/data/uv/tools" \
