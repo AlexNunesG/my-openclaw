@@ -100,6 +100,21 @@ if (config.gateway.controlUi.enabled === undefined) {
   config.gateway.controlUi.enabled = true;
 }
 
+if (process.env.OPENCLAW_GATEWAY_ALLOWED_ORIGINS) {
+  let allowedOrigins;
+  try {
+    const parsed = JSON.parse(process.env.OPENCLAW_GATEWAY_ALLOWED_ORIGINS);
+    allowedOrigins = Array.isArray(parsed) ? parsed : [parsed];
+  } catch {
+    allowedOrigins = process.env.OPENCLAW_GATEWAY_ALLOWED_ORIGINS
+      .split(",")
+      .map(s => s.trim());
+  }
+  config.gateway.controlUi.allowedOrigins = allowedOrigins
+    .map(origin => String(origin).trim())
+    .filter(Boolean);
+}
+
 // Bind address (all gateway config comes from openclaw.json; "gateway run" reads it)
 if (config.gateway.bind === undefined) {
   config.gateway.bind = process.env.OPENCLAW_GATEWAY_BIND || "loopback";

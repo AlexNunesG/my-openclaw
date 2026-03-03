@@ -167,6 +167,7 @@ If a provider env var is removed, that provider section is cleaned from `opencla
 | `OPENCLAW_GATEWAY_TOKEN` | *(auto-generated)* | Bearer token for gateway auth. Auto-generated and persisted to `<STATE_DIR>/gateway.token` if not set. |
 | `OPENCLAW_GATEWAY_PORT` | `18789` | Internal port the gateway binds to. |
 | `OPENCLAW_GATEWAY_BIND` | `loopback` | Gateway bind mode. `loopback` = 127.0.0.1 only (nginx proxies LAN traffic). `lan` = 0.0.0.0 (direct access, bypasses nginx auth). Also: `tailnet`, `auto`, `custom`. |
+| `OPENCLAW_GATEWAY_ALLOWED_ORIGINS` | | CORS allowlist for gateway requests. Accepts either a JSON array (e.g. `["https://app.example.com","http://localhost:3000"]`) or comma-separated values. |
 | `OPENCLAW_STATE_DIR` | `/data/.openclaw` | Persistent state directory. Mount a volume here. |
 | `OPENCLAW_WORKSPACE_DIR` | `/data/workspace` | Workspace directory for openclaw projects. |
 | `OPENCLAW_CONFIG_PATH` | `<STATE_DIR>/openclaw.json` | Override path to the config file. |
