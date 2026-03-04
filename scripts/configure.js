@@ -624,29 +624,6 @@ if (process.env.BROWSER_CDP_URL) {
   console.log("[configure] browser configured (from custom JSON)");
 }
 
-// ── Validate: at least one provider API key env var must be set ──────────────
-// All providers (built-in and custom) read API keys from env vars, not from JSON.
-const hasProvider =
-  builtinProviders.some(([envKey]) => process.env[envKey]) ||
-  !!opencodeKey ||
-  !!(process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) ||
-  !!ollamaUrl ||
-  // Custom proxy providers also need env var keys
-  !!process.env.VENICE_API_KEY || !!process.env.MINIMAX_API_KEY ||
-  !!process.env.MOONSHOT_API_KEY || !!process.env.KIMI_API_KEY ||
-  !!process.env.SYNTHETIC_API_KEY || !!process.env.XIAOMI_API_KEY;
-
-if (!hasProvider) {
-  console.error("[configure] ERROR: No AI provider API key set.");
-  console.error("[configure] Providers require an env var — API keys are never read from the JSON config.");
-  console.error("[configure] Set one of: ANTHROPIC_API_KEY, OPENAI_API_KEY, OPENROUTER_API_KEY, GEMINI_API_KEY,");
-  console.error("[configure]   XAI_API_KEY, GROQ_API_KEY, MISTRAL_API_KEY, CEREBRAS_API_KEY, ZAI_API_KEY,");
-  console.error("[configure]   AI_GATEWAY_API_KEY, OPENCODE_API_KEY, COPILOT_GITHUB_TOKEN, VENICE_API_KEY,");
-  console.error("[configure]   MOONSHOT_API_KEY, KIMI_API_KEY, MINIMAX_API_KEY, SYNTHETIC_API_KEY, XIAOMI_API_KEY,");
-  console.error("[configure]   AWS_ACCESS_KEY_ID+AWS_SECRET_ACCESS_KEY (Bedrock), or OLLAMA_BASE_URL (local)");
-  process.exit(1);
-}
-
 // ── Write config ────────────────────────────────────────────────────────────
 
 fs.mkdirSync(path.dirname(CONFIG_FILE), { recursive: true });

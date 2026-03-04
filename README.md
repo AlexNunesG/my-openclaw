@@ -15,7 +15,7 @@ docker run -d \
   coollabsio/openclaw:latest
 ```
 
-- `ANTHROPIC_API_KEY` — any [supported provider key](#ai-providers-at-least-one-required) works (OpenAI, Gemini, etc.)
+- `ANTHROPIC_API_KEY` — any [supported provider key](#ai-providers-optional) works (OpenAI, Gemini, etc.)
 - `AUTH_PASSWORD` — protects the web UI with HTTP basic auth (user defaults to `admin`, override with `AUTH_USERNAME`)
 - `OPENCLAW_GATEWAY_TOKEN` — internal API token; auto-generated if omitted, but set it explicitly for stable API access
 - `/data` — persists state, config, and workspace across restarts
@@ -98,7 +98,7 @@ Triggers: `schedule: '0 */6 * * *'` + `workflow_dispatch` (version, force_rebuil
 
 ## Environment variables
 
-### AI Providers (at least one required)
+### AI Providers (optional)
 
 | Variable | Description |
 |---|---|
@@ -122,6 +122,8 @@ Triggers: `schedule: '0 */6 * * *'` + `workflow_dispatch` (version, force_rebuil
 | `XIAOMI_API_KEY` | Xiaomi MiMo API key (Anthropic-compatible). Configures MiMo v2 Flash. |
 
 Multiple providers can be set simultaneously. Priority for primary model: Anthropic > OpenAI > OpenRouter > Gemini > OpenCode > GitHub Copilot > xAI > Groq > Mistral > Cerebras > Venice > Moonshot > Kimi > MiniMax > Synthetic > ZAI > AI Gateway > Xiaomi > Bedrock > Ollama.
+
+If no provider env var is set, `configure.js` still writes config successfully; add a provider later when you want to run AI model calls.
 
 If a provider env var is removed, that provider section is cleaned from `openclaw.json` on next start.
 
