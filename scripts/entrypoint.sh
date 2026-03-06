@@ -160,6 +160,25 @@ git_sync_cmd() {
   fi
 }
 
+git_sync_cmd_logged() {
+  local dir="$1"
+  local context="$2"
+  shift 2
+
+  local output
+  if ! output="$(git_sync_cmd "$dir" "$@" 2>&1)"; then
+    echo "[entrypoint] git sync: ${context} failed: git $*"
+    if [ -n "$output" ]; then
+      while IFS= read -r line; do
+        echo "[entrypoint] git sync:   $line"
+      done <<< "$output"
+    fi
+    return 1
+  fi
+
+  return 0
+}
+
 git_sync_commit_if_needed() {
   local dir="$1"
   local label="$2"
@@ -200,9 +219,10 @@ git_sync_target() {
   fi
 
   if [ -n "$branch" ]; then
-    git_sync_cmd "$dir" fetch --prune origin "$branch" >/dev/null 2>&1 || git_sync_cmd "$dir" fetch --prune origin >/dev/null 2>&1
+    git_sync_cmd_logged "$dir" "$label fetch origin/$branch" fetch --prune origin "$branch" || \
+      git_sync_cmd_logged "$dir" "$label fetch origin" fetch --prune origin || return 1
   else
-    git_sync_cmd "$dir" fetch --prune origin >/dev/null 2>&1
+    git_sync_cmd_logged "$dir" "$label fetch origin" fetch --prune origin || return 1
     branch="$(git -C "$dir" symbolic-ref --quiet --short refs/remotes/origin/HEAD 2>/dev/null | sed 's#^origin/##')"
     if [ -z "$branch" ]; then
       branch="main"
@@ -220,9 +240,9 @@ git_sync_target() {
   git_sync_commit_if_needed "$dir" "$label pre-pull"
 
   if git -C "$dir" show-ref --verify --quiet "refs/remotes/origin/$branch"; then
-    if ! git_sync_cmd "$dir" pull --rebase --autostash origin "$branch" >/dev/null 2>&1; then
+    if ! git_sync_cmd_logged "$dir" "$label pull origin/$branch" pull --rebase --autostash origin "$branch"; then
       git -C "$dir" rebase --abort >/dev/null 2>&1 || true
-      git_sync_cmd "$dir" merge --no-edit --allow-unrelated-histories "origin/$branch" >/dev/null 2>&1 || return 1
+      git_sync_cmd_logged "$dir" "$label merge origin/$branch" merge --no-edit --allow-unrelated-histories "origin/$branch" || return 1
     fi
   fi
 
@@ -230,7 +250,7 @@ git_sync_target() {
 
   if [ "$GIT_SYNC_PUSH_ENABLED" = true ]; then
     if git -C "$dir" rev-parse --verify HEAD >/dev/null 2>&1; then
-      git_sync_cmd "$dir" push origin "$branch" >/dev/null 2>&1 || return 1
+      git_sync_cmd_logged "$dir" "$label push origin/$branch" push origin "$branch" || return 1
     else
       echo "[entrypoint] git sync: $label repository has no commits yet, skipping push"
     fi
