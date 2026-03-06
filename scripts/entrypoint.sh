@@ -154,9 +154,11 @@ git_sync_cmd() {
   shift
 
   if [ -n "$GIT_SYNC_GITHUB_TOKEN" ] && [[ "$GIT_SYNC_REPO_URL" == *"github.com"* ]]; then
+    local github_basic_auth
+    github_basic_auth="$(printf 'x-access-token:%s' "$GIT_SYNC_GITHUB_TOKEN" | base64 | tr -d '\n')"
     git -C "$dir" \
       -c credential.helper= \
-      -c "url.https://x-access-token:${GIT_SYNC_GITHUB_TOKEN}@github.com/.insteadOf=https://github.com/" \
+      -c "http.https://github.com/.extraheader=AUTHORIZATION: basic ${github_basic_auth}" \
       "$@"
   else
     git -C "$dir" -c credential.helper= "$@"
