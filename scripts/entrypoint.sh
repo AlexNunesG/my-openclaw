@@ -229,7 +229,11 @@ git_sync_target() {
   git_sync_commit_if_needed "$dir" "$label post-pull"
 
   if [ "$GIT_SYNC_PUSH_ENABLED" = true ]; then
-    git_sync_cmd "$dir" push origin "$branch" >/dev/null 2>&1 || return 1
+    if git -C "$dir" rev-parse --verify HEAD >/dev/null 2>&1; then
+      git_sync_cmd "$dir" push origin "$branch" >/dev/null 2>&1 || return 1
+    else
+      echo "[entrypoint] git sync: $label repository has no commits yet, skipping push"
+    fi
   fi
 
   return 0
