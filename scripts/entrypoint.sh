@@ -154,7 +154,10 @@ git_sync_cmd() {
   shift
 
   if [ -n "$GIT_SYNC_GITHUB_TOKEN" ] && [[ "$GIT_SYNC_REPO_URL" == *"github.com"* ]]; then
-    git -C "$dir" -c credential.helper= -c "http.https://github.com/.extraheader=AUTHORIZATION: bearer ${GIT_SYNC_GITHUB_TOKEN}" "$@"
+    git -C "$dir" \
+      -c credential.helper= \
+      -c "url.https://x-access-token:${GIT_SYNC_GITHUB_TOKEN}@github.com/.insteadOf=https://github.com/" \
+      "$@"
   else
     git -C "$dir" -c credential.helper= "$@"
   fi
